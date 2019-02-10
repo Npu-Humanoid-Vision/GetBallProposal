@@ -36,7 +36,7 @@ cv::Mat GetUsedChannel(cv::Mat& image, int flag) {
 int main() {
     cv::VideoCapture cp(CP_OPEN);
     cv::Mat frame;
-    cv::Mat intergal_frame;
+    cv::Mat integral_frame;
     cv::Mat used_channel;
     int used_channel_flag = 1;
 
@@ -62,9 +62,15 @@ int main() {
          // thre 
         thre_result = used_channel>min_thre & used_channel<max_thre;
 
+        // get intergral image
+        cv::integral(thre_result, integral_frame, CV_32S);
+        cv::normalize(integral_frame, integral_frame, 0, 255, CV_MINMAX);
+        cv::convertScaleAbs(integral_frame, integral_frame);
+
         cv::imshow("living", frame);
         cv::imshow("thre", thre_result);
-        char key = cv::waitKey();
+        cv::imshow("integral", integral_frame);
+        char key = cv::waitKey(0);
         if (key == 'q') {
             break;
         }
