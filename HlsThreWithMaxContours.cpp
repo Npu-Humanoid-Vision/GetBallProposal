@@ -1,4 +1,8 @@
-#include "HogGetter.h"
+#include <bits/stdc++.h>
+#include <opencv2/opencv.hpp>
+using namespace std;
+using namespace cv;
+
 
 int main(int argc, char const *argv[]) {
     // cv::VideoCapture cp("D:/baseRelate/code/svm_trial/BackUpSource/Ball/Train/Raw/%d.jpg");
