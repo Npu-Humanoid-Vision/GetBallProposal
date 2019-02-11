@@ -10,6 +10,7 @@ using namespace cv;
 // VideoCapture打开的东西(string& filename/webcam index)
 // #define CP_OPEN "/media/alex/Data/baseRelate/pic_data/frame%04d.jpg"
 #define CP_OPEN "/media/alex/Data/baseRelate/code/NpuHumanoidVision/BackUpSource/Ball/Train/Raw/%d.jpg"
+// #define CP_OPEN 0s
 
 #define MODEL_NAME "../SvmTrain/ball_linear_auto.xml"
 
@@ -44,14 +45,14 @@ inline cv::Mat GetUsedChannel(cv::Mat& image, int flag) {
 inline void Slide(cv::Mat& integral_image, std::vector<cv::Rect>& result, double thre) {
     // define the wins size
     std::vector<cv::Size> wins_sizes;
-    for (int i=10; i<=100; i+=10) {
+    for (int i=100; i<=300; i+=40) {
         wins_sizes.push_back(cv::Size(i,i));
     }
     int row = integral_image.rows;
     int col = integral_image.cols;
     
-    int row_step = 10;
-    int col_step = 10;
+    int row_step = 40;
+    int col_step = 40;
     for (int k=0; k<wins_sizes.size(); k++) {
         for (int i=0; i+wins_sizes[k].height<row; i+=row_step) {
             for (int j=0; j+wins_sizes[k].width<col; j+=col_step) {
