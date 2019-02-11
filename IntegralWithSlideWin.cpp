@@ -8,7 +8,8 @@ using namespace cv;
 #define NEG_LABLE 0
 
 // VideoCapture打开的东西(string& filename/webcam index)
-#define CP_OPEN "/media/alex/Data/baseRelate/pic_data/frame%04d.jpg"
+// #define CP_OPEN "/media/alex/Data/baseRelate/pic_data/frame%04d.jpg"
+#define CP_OPEN "/media/alex/Data/baseRelate/code/NpuHumanoidVision/BackUpSource/Ball/Train/Raw/%d.jpg"
 
 #define MODEL_NAME "../SvmTrain/ball_linear_auto.xml"
 
@@ -100,16 +101,24 @@ int main() {
     cv::Mat thre_result;
     int min_thre = 0;
     int max_thre = 255;
+    
+    // fps variables
+    double begin;
+    double fps;
+
     cv::namedWindow("blob_params");
     cv::createTrackbar("min_thre", "blob_params", &min_thre, 256);
     cv::createTrackbar("max_thre", "blob_params", &max_thre, 256);
     while (true) {
+        begin = (double)getTickCount();
+
         cp >> frame;
         if (frame.empty()) {
             cout<<"wait for rebooting..."<<endl;
             cp.open(CP_OPEN);
             continue;
         }
+        
 #if CV_MAJOR_VERSION < 3
         cv::flip(frame, frame, -1);
         cv::resize(frame, frame, cv::Size(320, 240));
@@ -121,7 +130,7 @@ int main() {
         used_channel = GetUsedChannel(frame, used_channel_flag);
 
          // thre 
-        thre_result = used_channel>min_thre & used_channel<max_thre;
+        thre_result = used_channel>=min_thre & used_channel<=max_thre;
 
         // get intergral image
         cv::integral(thre_result, integral_frame, CV_32S);
@@ -149,15 +158,15 @@ int main() {
                 cv::rectangle(frame, *i, cv::Scalar(0, 255, 0), 2);
             } 
             else {
-                cv::rectangle(frame, *i, cv::Scalar(0, 0, 255), 2);
+                // cv::rectangle(frame, *i, cv::Scalar(0, 0, 255), 2);
             }
 #endif
         }
-
+        cout<<"fps: "<<1.0/(((double)getTickCount() - begin)/getTickFrequency())<<endl;
 
         cv::imshow("living", frame);
         cv::imshow("thre", thre_result);
-        cv::imshow("integral", integral_frame);
+        // cv::imshow("integral", integral_frame);
         cv::imshow("sld_result", probable_pos);
         char key = cv::waitKey(1);
         if (key == 'q') {
