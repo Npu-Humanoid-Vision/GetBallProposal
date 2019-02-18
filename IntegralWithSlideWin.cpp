@@ -12,12 +12,10 @@ using namespace cv;
 #define CP_OPEN "/media/alex/Data/baseRelate/code/NpuHumanoidVision/BackUpSource/Ball/Train/Raw/%d.jpg"
 // #define CP_OPEN 0s
 
-#define MODEL_NAME "../SvmTrain/ball_linear_auto.xml"
+#define MODEL_NAME "../SvmTrain/ball_rbf_auto.xml"
 
 #define IMG_COLS 32
 #define IMG_ROWS 32
-
-
 
 
 inline cv::Mat GetUsedChannel(cv::Mat& image, int flag) {
@@ -40,7 +38,7 @@ inline cv::Mat GetUsedChannel(cv::Mat& image, int flag) {
         cv::cvtColor(image, t_cs[0], CV_BGR2GRAY);
         return t_cs[0];
     }
-} 
+}
 
 inline void Slide(cv::Mat& integral_image, std::vector<cv::Rect>& result, double thre) {
     // define the wins size
@@ -80,6 +78,67 @@ inline cv::Mat GetHogVec(cv::Mat& ROI) {
     hog_vec_in_mat.convertTo(hog_vec_in_mat, CV_32FC1);
 
     return hog_vec_in_mat;
+}
+
+// fit the line by the y = k*x + b form
+inline void GetSideLine(cv::Mat& binary_image, double& k, double& b) {
+    // points for sideline
+    std::vector<cv::Point2i> sideline_points; 
+
+    // integral the binary image for latter operation
+    cv::Mat integral_image;
+    cv::Mat t = binary_image/255;
+    cv::integral(t, integral_image, CV_32S);
+
+    // slide wins related validables
+    int wins_stride = 10;
+    int wins_num = 32;
+    int wins_row = 10;
+    double wins_thre = 0.81;
+    int wins_col = binary_image.cols/wins_num;
+    std::vector<cv::Rect> wins;
+
+    for (auto i = 0; i < wins_num; i++) {
+        wins.push_back(cv::Rect(i*wins_row, 0, wins_col, wins_row));
+
+        int pix_counter = 0;
+        cv::Rect& t_rect = wins[i];
+        do {
+            pix_counter = integral_image.at<int>(t_rect.y+t_rect.height, t_rect.x+t_rect.width)
+                        + integral_image.at<int>(t_rect.y, t_rect.x)
+                        - integral_image.at<int>(t_rect.y+t_rect.height, t_rect.x)
+                        - integral_image.at<int>(t_rect.y, t_rect.x+t_rect.width);
+            if (1.0*pix_counter/t_rect.area() > wins_thre) {
+                break;
+            }
+
+            if (t_rect.y+2*wins_stride < binary_image.rows) {
+                t_rect.y += wins_stride;
+            }
+            else {
+                break;
+            }
+        }while (true);
+        sideline_points.push_back(cv::Point2i(t_rect.x + wins_col/2, t_rect.y + wins_row*wins_thre));
+    }
+
+    // fit the sideline discrete points by least quares method
+    cv::Mat mat_a(wins_num, 2, CV_64FC1);
+    cv::Mat mat_x(2, 1, CV_64FC1);
+    cv::Mat mat_b(wins_num, 1, CV_64FC1);
+
+    for (int i = 0; i < wins_num; i++) {
+        mat_a.at<double>(i, 0) = sideline_points[i].x;
+        mat_a.at<double>(i, 1) = 1.;
+
+        mat_b.at<double>(i, 0) = sideline_points[i].y;
+    }
+    cv::Mat mat_a_t = mat_a.t();
+    mat_x = (mat_a_t*mat_a).inv(DECOMP_LU)*mat_a_t*mat_b;
+
+    // return k and b
+    k = mat_x.at<double>(0, 0);
+    b = mat_x.at<double>(1, 0);
 }
 
 int main() {
@@ -169,7 +228,7 @@ int main() {
         cv::imshow("thre", thre_result);
         // cv::imshow("integral", integral_frame);
         cv::imshow("sld_result", probable_pos);
-        char key = cv::waitKey(1);
+        char key = cv::waitKey();
         if (key == 'q') {
             break;
         }
