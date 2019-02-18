@@ -9,14 +9,140 @@ using namespace cv;
 
 // VideoCapture打开的东西(string& filename/webcam index)
 // #define CP_OPEN "/media/alex/Data/baseRelate/pic_data/frame%04d.jpg"
-#define CP_OPEN "/media/alex/Data/baseRelate/code/NpuHumanoidVision/BackUpSource/Ball/Train/Raw/%d.jpg"
-// #define CP_OPEN 0s
+// #define CP_OPEN "/media/alex/Data/baseRelate/code/NpuHumanoidVision/BackUpSource/Ball/Train/Raw/%d.jpg"
+#define CP_OPEN 1
 
 #define MODEL_NAME "../SvmTrain/ball_rbf_auto.xml"
 
 #define IMG_COLS 32
 #define IMG_ROWS 32
 
+inline cv::Mat GetUsedChannel(cv::Mat& image, int flag);
+inline void Slide(cv::Mat& integral_image, std::vector<cv::Rect>& result, double thre, double kk, double b);
+inline cv::Mat GetHogVec(cv::Mat& ROI);
+inline void GetSideLine(cv::Mat& binary_image, double& k, double& b);
+inline bool JudgeRectBySideLine(cv::Rect t_rect, double k, double b);
+
+int main() {
+    // load SVM model
+#if CV_MAJOR_VERSION < 3
+    CvSVM tester;
+    tester.load(MODEL_NAME);
+#else
+    cv::Ptr<cv::ml::SVM> tester = cv::ml::SVM::load(MODEL_NAME);
+#endif
+
+    cv::VideoCapture cp(CP_OPEN);
+    cv::Mat frame;
+    cv::Mat integral_frame;
+    cv::Mat used_channel;
+    cv::Mat probable_pos;
+    int used_channel_flag = 1;
+
+    cv::Mat s_mask;
+    cv::Mat glass_binary;
+    double k;
+    double b;
+
+    // thresholds for ball
+    cv::Mat thre_result;
+    int min_thre = 0;
+    int max_thre = 255;
+    int integral_min = 0;
+    
+    // thresholds for glass
+    int h_min = 0;
+    int h_max = 255;
+    int s_min = 0;
+    
+    // fps variables
+    double begin;
+    double fps;
+
+    cv::namedWindow("blob_params");
+    cv::createTrackbar("min_l", "blob_params", &min_thre, 256);
+    cv::createTrackbar("max_l", "blob_params", &max_thre, 256);
+    cv::createTrackbar("min_h", "blob_params", &h_min, 256);
+    cv::createTrackbar("max_h", "blob_params", &h_max, 256);
+    cv::createTrackbar("min_s", "blob_params", &s_min, 256);
+    cv::createTrackbar("integral_l_min", "blob_params", &integral_min, 100);
+    while (true) {
+        begin = (double)getTickCount();
+
+        cp >> frame;
+        if (frame.empty()) {
+            cout<<"wait for rebooting..."<<endl;
+            cp.open(CP_OPEN);
+            continue;
+        }
+        
+#if CV_MAJOR_VERSION < 3
+        cv::flip(frame, frame, -1);
+        cv::resize(frame, frame, cv::Size(320, 240));
+#endif
+        // blur 
+        cv::GaussianBlur(frame, frame, cv::Size(5, 5), 0.);
+
+        // get used channel(L here)
+        used_channel = GetUsedChannel(frame, used_channel_flag);
+
+         // thre 
+        thre_result = used_channel>=min_thre & used_channel<=max_thre;
+
+        // using s channel
+        used_channel = GetUsedChannel(frame, 2);
+        s_mask = used_channel >= s_min;
+        // using h channel
+        used_channel = GetUsedChannel(frame, 0);
+        glass_binary = used_channel>=h_min & used_channel<=h_max;
+        glass_binary &= s_mask;
+        GetSideLine(glass_binary, k, b);
+
+        // get intergral image  
+        cv::integral(thre_result, integral_frame, CV_32S);
+        integral_frame /= 255;
+
+        std::vector<cv::Rect> sld_result;
+        Slide(integral_frame, sld_result, integral_min/100.0, k, b);
+        
+        probable_pos = frame.clone();
+        for (auto i = sld_result.begin(); i != sld_result.end(); i++) {
+            cv::Mat t = frame(*i).clone();
+            cv::Mat hog_vec_in_mat = GetHogVec(t);
+#if CV_MAJOR_VERSION < 3
+            int lable = (int)tester.predict(hog_vec_in_mat);
+            if (lable == POS_LABLE) {
+                cv::rectangle(frame, *i, cv::Scalar(0, 255, 0), 2);
+            }
+            else {
+                cv::rectangle(frame, *i, cv::Scalar(0, 0, 255), 2);
+            }
+#else
+            cv::Mat lable;
+            tester->predict(hog_vec_in_mat, lable);
+            if (lable.at<float>(0, 0) == POS_LABLE) {
+                cv::rectangle(frame, *i, cv::Scalar(0, 255, 0), 2);
+            } 
+            else {
+                // cv::rectangle(frame, *i, cv::Scalar(0, 0, 255), 2);
+            }
+#endif
+        }
+        cv::line(frame, cv::Point(0., b), cv::Point(1.0*frame.cols, k*frame.cols+b), cv::Scalar(0, 0, 255), 2);
+        cout<<"fps: "<<1.0/(((double)getTickCount() - begin)/getTickFrequency())<<endl;
+
+        cv::imshow("living", frame);
+        cv::imshow("ball_thre", thre_result);
+        cv::imshow("glass_thre", glass_binary);
+        // cv::imshow("integral", integral_frame);
+        cv::imshow("sld_result", probable_pos);
+        char key = cv::waitKey(1);
+        if (key == 'q') {
+            break;
+        }
+    }
+    return 0;
+}
 
 inline cv::Mat GetUsedChannel(cv::Mat& image, int flag) {
     cv::Mat hls_image;
@@ -40,7 +166,7 @@ inline cv::Mat GetUsedChannel(cv::Mat& image, int flag) {
     }
 }
 
-inline void Slide(cv::Mat& integral_image, std::vector<cv::Rect>& result, double thre) {
+inline void Slide(cv::Mat& integral_image, std::vector<cv::Rect>& result, double thre, double kk, double b) {
     // define the wins size
     std::vector<cv::Size> wins_sizes;
     for (int i=100; i<=300; i+=40) {
@@ -49,11 +175,20 @@ inline void Slide(cv::Mat& integral_image, std::vector<cv::Rect>& result, double
     int row = integral_image.rows;
     int col = integral_image.cols;
     
-    int row_step = 40;
-    int col_step = 40;
+    int row_step = 10;
+    int col_step = 10;
     for (int k=0; k<wins_sizes.size(); k++) {
         for (int i=0; i+wins_sizes[k].height<row; i+=row_step) {
             for (int j=0; j+wins_sizes[k].width<col; j+=col_step) {
+                cv::Rect t_rect = cv::Rect(cv::Point(j, i), wins_sizes[k]);
+                // cout<<t_rect<<endl;
+                // cout<<kk<<' '<<b<<endl;
+                if (JudgeRectBySideLine(t_rect, kk, b)) {
+                    ;
+                }
+                else {
+                    continue;
+                }
                 // compute ratio for thre
                 int win_sum = integral_image.at<int>(i+wins_sizes[k].height, j+wins_sizes[k].width) 
                             + integral_image.at<int>(i, j)
@@ -139,99 +274,16 @@ inline void GetSideLine(cv::Mat& binary_image, double& k, double& b) {
     // return k and b
     k = mat_x.at<double>(0, 0);
     b = mat_x.at<double>(1, 0);
+    // cout<<k<<' '<<b<<endl;
 }
 
-int main() {
-    // load SVM model
-#if CV_MAJOR_VERSION < 3
-    CvSVM tester;
-    tester.load(MODEL_NAME);
-#else
-    cv::Ptr<cv::ml::SVM> tester = cv::ml::SVM::load(MODEL_NAME);
-#endif
-
-    cv::VideoCapture cp(CP_OPEN);
-    cv::Mat frame;
-    cv::Mat integral_frame;
-    cv::Mat used_channel;
-    cv::Mat probable_pos;
-    int used_channel_flag = 1;
-
-    // thresholds
-    cv::Mat thre_result;
-    int min_thre = 0;
-    int max_thre = 255;
-    
-    // fps variables
-    double begin;
-    double fps;
-
-    cv::namedWindow("blob_params");
-    cv::createTrackbar("min_thre", "blob_params", &min_thre, 256);
-    cv::createTrackbar("max_thre", "blob_params", &max_thre, 256);
-    while (true) {
-        begin = (double)getTickCount();
-
-        cp >> frame;
-        if (frame.empty()) {
-            cout<<"wait for rebooting..."<<endl;
-            cp.open(CP_OPEN);
-            continue;
-        }
-        
-#if CV_MAJOR_VERSION < 3
-        cv::flip(frame, frame, -1);
-        cv::resize(frame, frame, cv::Size(320, 240));
-#endif
-        // blur 
-        cv::GaussianBlur(frame, frame, cv::Size(5, 5), 0.);
-
-        // get used channel 
-        used_channel = GetUsedChannel(frame, used_channel_flag);
-
-         // thre 
-        thre_result = used_channel>=min_thre & used_channel<=max_thre;
-
-        // get intergral image
-        cv::integral(thre_result, integral_frame, CV_32S);
-        integral_frame /= 255;
-
-        std::vector<cv::Rect> sld_result;
-        Slide(integral_frame, sld_result, 0.5);
-        
-        probable_pos = frame.clone();
-        for (auto i = sld_result.begin(); i != sld_result.end(); i++) {
-            cv::Mat t = frame(*i).clone();
-            cv::Mat hog_vec_in_mat = GetHogVec(t);
-#if CV_MAJOR_VERSION < 3
-            int lable = (int)tester.predict(hog_vec_in_mat);
-            if (lable == POS_LABLE) {
-                cv::rectangle(frame, *i, cv::Scalar(0, 255, 0), 2);
-            }
-            else {
-                cv::rectangle(frame, *i, cv::Scalar(0, 0, 255), 2);
-            }
-#else
-            cv::Mat lable;
-            tester->predict(hog_vec_in_mat, lable);
-            if (lable.at<float>(0, 0) == POS_LABLE) {
-                cv::rectangle(frame, *i, cv::Scalar(0, 255, 0), 2);
-            } 
-            else {
-                // cv::rectangle(frame, *i, cv::Scalar(0, 0, 255), 2);
-            }
-#endif
-        }
-        cout<<"fps: "<<1.0/(((double)getTickCount() - begin)/getTickFrequency())<<endl;
-
-        cv::imshow("living", frame);
-        cv::imshow("thre", thre_result);
-        // cv::imshow("integral", integral_frame);
-        cv::imshow("sld_result", probable_pos);
-        char key = cv::waitKey();
-        if (key == 'q') {
-            break;
-        }
+inline bool JudgeRectBySideLine(cv::Rect t_rect, double k, double b) {
+    // cout<<k<<' '<<b<<endl;
+    if ((t_rect.x + t_rect.width/2.0)*k + b < (t_rect.y + t_rect.height/2.0)) {
+        // cout<<(t_rect.x + t_rect.width/2)*k + b - t_rect.y<<endl;
+        return true;
     }
-    return 0;
+    else {
+        return false;
+    }
 }
