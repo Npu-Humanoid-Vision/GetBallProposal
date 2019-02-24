@@ -12,10 +12,10 @@ using namespace cv;
 // #define CP_OPEN "/media/alex/Data/baseRelate/code/NpuHumanoidVision/BackUpSource/Ball/Train/Raw/%d.jpg"
 #define CP_OPEN 1
 
-#define MODEL_NAME "../SvmTrain/ball_rbf_auto.xml"
+#define MODEL_NAME "../SvmTrain/model/BigBall/c_svc_linear.xml"
 
-#define IMG_COLS 32
-#define IMG_ROWS 32
+#define IMG_COLS 128
+#define IMG_ROWS 128
 
 inline cv::Mat GetUsedChannel(cv::Mat& image, int flag);
 inline void Slide(cv::Mat& integral_image, std::vector<cv::Rect>& result, double thre, double kk, double b);
@@ -136,7 +136,7 @@ int main() {
         cv::imshow("glass_thre", glass_binary);
         // cv::imshow("integral", integral_frame);
         cv::imshow("sld_result", probable_pos);
-        char key = cv::waitKey(1);
+        char key = cv::waitKey(200);
         if (key == 'q') {
             break;
         }
