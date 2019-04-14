@@ -8,9 +8,9 @@ using namespace cv;
 #define NEG_LABLE 0
 
 // VideoCapture打开的东西(string& filename/webcam index)
-// #define CP_OPEN "/media/alex/Data/baseRelate/pic_data/frame%04d.jpg"
+#define CP_OPEN "/media/alex/Data/baseRelate/pic_data/frame%04d.jpg"
 // #define CP_OPEN "/media/alex/Data/baseRelate/code/NpuHumanoidVision/BackUpSource/Ball/Train/Raw/%d.jpg"
-#define CP_OPEN 1
+// #define CP_OPEN 1
 
 #define MODEL_NAME "../SvmTrain/model/BigBall/c_svc_linear.xml"
 
