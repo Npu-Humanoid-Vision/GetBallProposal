@@ -3,11 +3,34 @@
 using namespace std;
 using namespace cv;
 
-// #define CP_OPEN 0
-#define CP_OPEN "/media/alex/Data/baseRelate/pic_data/frame%04d.jpg"
+#define CP_OPEN 1
+// #define CP_OPEN "/media/alex/Data/baseRelate/pic_data/frame%04d.jpg"
 
 
 enum { H,S,V,L,A,B };
+
+// L thre
+int L_min = 0, L_max = 255;
+
+cv::Mat GetUsedChannel(cv::Mat& src_img, int flag);
+
+std::vector<cv::Point> GetMaxContours(cv::Mat frame, cv::Mat& binary_image) {
+
+    std::vector<std::vector<cv::Point>> contours;
+    frame = GetUsedChannel(frame, L);
+    binary_image = L_min < frame & frame <= L_max;
+    cv::findContours(binary_image.clone(), contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE, cv::Point(0, 0));
+    int max_idx = -1;
+    int max_area = -1;
+    for(unsigned int i = 0; i < contours.size(); i++ ) {
+        if (contourArea(contours[i]) > max_area) {
+            max_idx = i;
+            max_area = contourArea(contours[i]);
+        }
+    }
+    return contours[max_idx];
+}
+
 
 cv::Mat GetUsedChannel(cv::Mat& src_img, int flag) {
     cv::Mat t;
@@ -83,21 +106,27 @@ void JudgeRoi(cv::Mat binary_image, std::vector<std::vector<cv::Point>>& judeged
         int delta_x = max_x - min_x;
         int delta_y = max_y - min_y;
 
-        if (0.5 < delta_x * 1.0 / delta_y && delta_x * 1.0 / delta_y < 2) {
+        if (0.5 < delta_x * 1.0 / delta_y && delta_x * 1.0 / delta_y < 2 && delta_x*delta_y > 200) {
             judeged_contours.push_back(contours[i]);
         }
     }
 }
 
 
+
 int main(int argc, char const* argv[]) {
+    cv::Mat std_frame = cv::imread("/media/alex/Data/baseRelate/code/NpuHumanoidVision/BackUpSource/BigBall/Rotated/Pos/0.jpg");
+    cv::Mat std_binary;
+    L_min = 140;
+    std::vector<cv::Point> std_contour = GetMaxContours(std_frame, std_binary);
+
     cv::VideoCapture cp(CP_OPEN);
     cv::Mat frame;
     cv::namedWindow("params");
 
     // Channel thre relate
-    int l_min = 93;
-    int l_max = 134;
+    int l_min = 180;
+    int l_max = 255;
     cv::createTrackbar("l_min", "params", &l_min, 255);
     cv::createTrackbar("l_max", "params", &l_max, 255);
 
@@ -136,6 +165,9 @@ int main(int argc, char const* argv[]) {
 
         cv::Mat l_and_a = l_thre & a_thre_flood;
 
+        cv::dilate(l_and_a, l_and_a, cv::Mat(5, 5, CV_8UC1));
+        cv::erode(l_and_a, l_and_a, cv::Mat(5, 5, CV_8UC1));
+
         std::vector<std::vector<cv::Point>> contours;
         JudgeRoi(l_and_a, contours);
 
@@ -158,9 +190,21 @@ int main(int argc, char const* argv[]) {
                 continue;
             }
             else {
-                rectangle(frame, boundRect[i].tl(), boundRect[i].br(), (0, 255, 0), 2, 8, 0);
+                rectangle(frame, boundRect[i].tl(), boundRect[i].br(), cv::Scalar(0, 255, 0), 2, 8, 0);
             }
         }
+
+        int min_score_idx;
+        double min_score = 100000;
+        for (int i=0; i<contours.size(); i++) {
+            double t_score = matchShapes(contours[i], std_contour, CV_CONTOURS_MATCH_I1, 0.);
+            if (t_score < min_score) {
+                min_score = t_score;
+                min_score_idx = i;
+            }
+        }
+        cout<<"min score"<<min_score<<endl;
+        cv::rectangle(frame, boundRect[min_score_idx].tl(), boundRect[min_score_idx].br(), cv::Scalar(255, 100, 0), 2, 8, 0);
 
         cv::imshow("src", frame);
         cv::imshow("gaus", gaused_frame);
@@ -169,7 +213,7 @@ int main(int argc, char const* argv[]) {
         cv::imshow("a thre flood", a_thre_flood);
         cv::imshow("a and l thre", l_and_a);
         // cv::imshow("a mor grad", a_thre_mor_gradiant);
-        char key = cv::waitKey(500);
+        char key = cv::waitKey(0);
         if (key == 'q') {
             break;
         }

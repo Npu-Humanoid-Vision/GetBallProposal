@@ -1,3 +1,5 @@
+#include "Params.h"
+
 #include <bits/stdc++.h>
 #include <opencv2/opencv.hpp>
 
@@ -8,16 +10,16 @@ using namespace cv;
 #define NEG_LABLE 0
 
 // VideoCapture打开的东西(string& filename/webcam index)
-#define CP_OPEN "/media/alex/Data/baseRelate/pic_data/frame%04d.jpg"
+// #define CP_OPEN "/media/alex/Data/baseRelate/pic_data/frame%04d.jpg"
 // #define CP_OPEN "/media/alex/Data/baseRelate/code/NpuHumanoidVision/BackUpSource/Ball/Train/Raw/%d.jpg"
-// #define CP_OPEN 1
+#define CP_OPEN 0
 
-#define MODEL_NAME "../SvmTrain/model/BigBall/c_svc_linear.xml"
+#define MODEL_NAME "../SvmTrain/model/BigBall/c_svc_with_moment.xml"
 
 #define IMG_COLS 128
 #define IMG_ROWS 128
 
-inline cv::Mat GetUsedChannel(cv::Mat& image, int flag);
+// inline cv::Mat GetUsedChannel(cv::Mat& image, int flag);
 inline void Slide(cv::Mat& integral_image, std::vector<cv::Rect>& result, double thre, double kk, double b);
 inline cv::Mat GetHogVec(cv::Mat& ROI);
 inline void GetSideLine(cv::Mat& binary_image, double& k, double& b);
@@ -144,27 +146,27 @@ int main() {
     return 0;
 }
 
-inline cv::Mat GetUsedChannel(cv::Mat& image, int flag) {
-    cv::Mat hls_image;
-    cv::Mat hsv_image;
-    cv::Mat t_cs[3];
+// inline cv::Mat GetUsedChannel(cv::Mat& image, int flag) {
+//     cv::Mat hls_image;
+//     cv::Mat hsv_image;
+//     cv::Mat t_cs[3];
 
-    switch (flag) {
-    case 0:// H channel
-    case 1:// L channel
-    case 2:// S channel
-        cv::cvtColor(image, hls_image, CV_BGR2HLS_FULL);
-        cv::split(hls_image, t_cs);
-        return t_cs[flag];
-    case 3:// V channel
-        cv::cvtColor(image, hsv_image, CV_BGR2HSV_FULL);
-        cv::split(hsv_image, t_cs);
-        return t_cs[2];
-    case 4:// gray channel
-        cv::cvtColor(image, t_cs[0], CV_BGR2GRAY);
-        return t_cs[0];
-    }
-}
+//     switch (flag) {
+//     case 0:// H channel
+//     case 1:// L channel
+//     case 2:// S channel
+//         cv::cvtColor(image, hls_image, CV_BGR2HLS_FULL);
+//         cv::split(hls_image, t_cs);
+//         return t_cs[flag];
+//     case 3:// V channel
+//         cv::cvtColor(image, hsv_image, CV_BGR2HSV_FULL);
+//         cv::split(hsv_image, t_cs);
+//         return t_cs[2];
+//     case 4:// gray channel
+//         cv::cvtColor(image, t_cs[0], CV_BGR2GRAY);
+//         return t_cs[0];
+//     }
+// }
 
 inline void Slide(cv::Mat& integral_image, std::vector<cv::Rect>& result, double thre, double kk, double b) {
     // define the wins size
@@ -207,6 +209,20 @@ inline cv::Mat GetHogVec(cv::Mat& ROI) {
     cv::HOGDescriptor hog_des(Size(IMG_COLS, IMG_ROWS), Size(16,16), Size(8,8), Size(8,8), 9);
     std::vector<float> hog_vec;
     hog_des.compute(ROI, hog_vec);
+
+    for (int j=0; j<6; j++) {
+            cv::Mat ROI_l = GetUsedChannel(ROI, j);
+            cv::Moments moment = cv::moments(ROI_l, false);
+
+            double hu[7];
+            cv::HuMoments(moment, hu);
+            for (int k=0; k<7; k++) {
+                hog_vec.push_back(hu[k]);
+            }
+            // for (int k=0; k<lbp_vec.cols; k++) {
+            //     t_descrip_vec.push_back(lbp_vec.at<uchar>(0, k));
+            // }
+        }
 
     cv::Mat t(hog_vec);
     cv::Mat hog_vec_in_mat = t.t();
