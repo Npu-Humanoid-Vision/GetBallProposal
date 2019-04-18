@@ -1,6 +1,7 @@
 // this version is using the built-in function in the hog classes
 // so ATTENTION !!!!!
 // LINEAR SVM CLASSIFIER ONLY !!!!!
+#include "Params.h"
 
 #include <bits/stdc++.h>
 #include <vector>
@@ -15,7 +16,7 @@ using namespace cv;
 
 #define CP_OPEN 1
 
-#define MODEL_NAME "../SvmTrain/ball_linear_auto.xml"
+// #define MODEL_NAME "../SvmTrain/ball_linear_auto.xml"
 
 class MySVM: public CvSVM
 {
