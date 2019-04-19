@@ -53,7 +53,7 @@ void ClfBallVision::imageProcess(cv::Mat input_image, ImgProcResult* output_resu
                                     final_result_.bound_box_.y + final_result_.bound_box_.height/2);
 
         cv::rectangle(for_show_, final_result_.bound_box_, cv::Scalar(0, 255, 255));
-        cv::circle(for_show_, final_result_.center_, final_result_.bound_box_.width, cv::Scalar(255, 255, 0), 3);
+        cv::circle(for_show_, final_result_.center_, final_result_.bound_box_.width/2, cv::Scalar(255, 255, 0), 3);
     }
     else {
         final_result_.valid_ = false;
@@ -92,11 +92,51 @@ cv::Mat ClfBallVision::ProcessColor() {
     thre_result = used_channel >= l_min & used_channel <= l_max;
     thre_result = thre_result & mask;
 
-    // cout<<0<<endl;
+    // for grass 
+    cv::Mat glass_mask = cv::Mat(this->src_image_.size(), CV_8UC1, cv::Scalar(0));
+    cv::Mat t_a = GetUsedChannel(this->pretreaded_image_, A);
+    cv::Mat glass_thre = t_a >= a_min & t_a <= a_max;
+
+    int last_i = -1;
+    int last_j = -1;
+    for (int i = 0; i < glass_thre.cols; i++) {
+        for (int j = 0; j < glass_thre.rows-10; j++) {
+            if (glass_thre.at<uchar>(j, i) == 255
+                && glass_thre.at<uchar>(j+1, i) == 255
+                && glass_thre.at<uchar>(j+2, i) == 255
+                && glass_thre.at<uchar>(j+3, i) == 255
+                && glass_thre.at<uchar>(j+4, i) == 255
+                && glass_thre.at<uchar>(j+5, i) == 255
+                && glass_thre.at<uchar>(j+6, i) == 255
+                && glass_thre.at<uchar>(j+7, i) == 255
+                && glass_thre.at<uchar>(j+8, i) == 255
+                && glass_thre.at<uchar>(j+9, i) == 255
+                && glass_thre.at<uchar>(j+10, i) == 255) {
+                if (last_i < 0) {
+                    last_i = i;
+                    last_j = j;
+                } else {
+                    cv::line(glass_mask, cv::Point(i, j), cv::Point(last_i, last_j), cv::Scalar(255), 2);
+                    last_i = i;
+                    last_j = j;
+                }
+                break;
+            }
+        }
+    }
+    cv::floodFill(glass_mask, cv::Point(glass_thre.cols / 2, glass_thre.rows - 1), 255);
+    SHOW_IMAGE(glass_mask, "grass mask");
+    thre_result = thre_result & glass_mask;
+
+    // cout<<hori_size<<endl;
+    cv::Mat hori_kernal = cv::getStructuringElement(MORPH_RECT, Size(hori_size, 1));
+    // cout<<"yayaya"<<endl;
     cv::Mat veri_kernal = cv::getStructuringElement(MORPH_RECT, Size(1, verti_size));
-    // cout<<1<<endl;
+
+    // cv::Mat dilate_kernal = cv::getStructuringElement(MORPH_RECT, Size(3, 3));
+    cv::dilate(thre_result, thre_result, hori_kernal);
     cv::erode(thre_result, thre_result, veri_kernal);
-    // cout<<2<<endl;
+    // cv::dilate(thre_result, thre_result, dilate_kernal);
     SHOW_IMAGE(thre_result, "l_thre");
     return thre_result;
 }
@@ -122,12 +162,37 @@ std::vector<cv::Rect> ClfBallVision::GetPossibleRect(cv::Mat binary_image) {
         double wh_rate = t_rect.width*1.0/t_rect.height;
  
         // shape & area thre
-        if (0.5<wh_rate && wh_rate<2.0 && t_rect.area() > 200) {
+        if (0.33<wh_rate && wh_rate<3.0 && t_rect.area() > 200) {
             if (t_rect.width < t_rect.height) {
                 continue;
             }
             else if (t_rect.width > t_rect.height) {
-                int delta = t_rect.width/15;
+                
+                /// abandon version
+                // int step = t_rect.height/5;
+                // for (int i=t_rect.x; i+t_rect.height<t_rect.x+t_rect.width; i+=step) {
+                //     int delta = t_rect.height/2;
+                //     cv::Rect tt_rect = cv::Rect(i, t_rect.y, t_rect.height, t_rect.height);
+                //     if (tt_rect.x-delta > 0) 
+                //         tt_rect.x -= delta;
+                //     if (tt_rect.y-delta >0)
+                //         tt_rect.y -= delta;
+
+                //     if (tt_rect.width+tt_rect.x+delta < src_image_.cols) {
+                //         tt_rect.width += delta;
+                //         // cout<<1<<endl;
+                //     }
+                        
+                //     if (tt_rect.height+tt_rect.y+delta < src_image_.rows) {
+                //         tt_rect.height += delta;
+                //         // cout<<2<<endl;
+                //     }
+                        
+
+                //     bound_rect.push_back(tt_rect);
+                // }
+
+                int delta = this->verti_size;
 
                 if (t_rect.x-delta > 0) 
                     t_rect.x -= delta;
@@ -136,10 +201,10 @@ std::vector<cv::Rect> ClfBallVision::GetPossibleRect(cv::Mat binary_image) {
 
                 if (t_rect.y + t_rect.width < src_image_.rows)
                     t_rect.height = t_rect.width;   
-                if (t_rect.width+t_rect.x+delta < src_image_.cols)
-                    t_rect.width += delta;
-                if (t_rect.height+t_rect.y+delta < src_image_.rows)
-                    t_rect.height += delta;
+                if (t_rect.width+t_rect.x+delta*2 < src_image_.cols)
+                    t_rect.width += delta*2;
+                if (t_rect.height+t_rect.y+delta*2 < src_image_.rows)
+                    t_rect.height += delta*2;
                 // cout<<t_rect<<endl;
                 bound_rect.push_back(t_rect);
             }
@@ -230,15 +295,24 @@ void ClfBallVision::LoadParameters() {
             ins >> l_max;
             break;
         case 2:
-            ins >> s_min;
+            ins >> a_min;
             break;
         case 3:
-            ins >> gaus_size;
+            ins >> a_max;
             break;
         case 4:
-            ins >> verti_size;
+            ins >> s_min;
             break;
         case 5:
+            ins >> gaus_size;
+            break;
+        case 6:
+            ins >> verti_size;
+            break;
+        case 7:
+            ins >> hori_size;
+            break;
+        case 8:
             ins >> svm_model_name_;
             break;
         }
@@ -260,9 +334,12 @@ void ClfBallVision::StoreParameters() {
     }
     out_file << setw(3) << setfill('0') << l_min                        <<"___l_min"<<endl;
     out_file << setw(3) << setfill('0') << l_max                        <<"___l_max"<<endl;
+    out_file << setw(3) << setfill('0') << a_min                        <<"___a_min"<<endl;
+    out_file << setw(3) << setfill('0') << a_max                        <<"___a_max"<<endl;
     out_file << setw(3) << setfill('0') << s_min                        <<"___s_min"<<endl;
     out_file << setw(3) << setfill('0') << gaus_size                    <<"___gaus_size"<<endl;
     out_file << setw(3) << setfill('0') << verti_size                   <<"___verti_size"<<endl;
+    out_file << setw(3) << setfill('0') << hori_size                    <<"___hori_size"<<endl;
     out_file << svm_model_name_;
     out_file.close();
 }
@@ -273,6 +350,7 @@ void ClfBallVision::set_all_parameters(AllParameters ap) {
     s_min = ap.s_min;
     gaus_size = ap.gaus_size;
     verti_size = ap.verti_size;
+    hori_size = ap.hori_size;
 }
      
 void ClfBallVision::WriteImg(cv::Mat src, string folder_name, int num) {

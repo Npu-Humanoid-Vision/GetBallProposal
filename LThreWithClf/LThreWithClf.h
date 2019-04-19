@@ -48,7 +48,7 @@ protected:
 #else
 
 #include "imgproc.h"
-#define SHOW_IMAGE(imgName) ;
+#define SHOW_IMAGE(imgName, yayaya) ;
 
 #endif 
 
@@ -85,9 +85,12 @@ public:
 struct AllParameters {
     int l_min;
     int l_max;
+    int a_min;
+    int a_max;
     int s_min;
     int gaus_size;
     int verti_size;
+    int hori_size;
 };
 
 class ClfBallVision : public ImgProc {
@@ -128,9 +131,12 @@ public: // 数据成员
     // 阈值化相关成员
     int l_min;
     int l_max;
+    int a_min;
+    int a_max;
     int s_min;
     int gaus_size;
     int verti_size;
+    int hori_size;
 
     // 用于获得多个可能结果时候检验
     bool init_former_rect_;

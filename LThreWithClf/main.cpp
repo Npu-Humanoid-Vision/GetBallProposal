@@ -21,6 +21,7 @@ int main(int argc, char const *argv[]) {
     all_p.s_min = sprint_vision.s_min;
     all_p.gaus_size = sprint_vision.gaus_size;
     all_p.verti_size = sprint_vision.verti_size;
+    all_p.hori_size = sprint_vision.hori_size;
 
     cv::namedWindow("set_params", CV_WINDOW_NORMAL);
     
@@ -29,6 +30,7 @@ int main(int argc, char const *argv[]) {
     cv::createTrackbar("s_min", "set_params", &all_p.s_min, 255);
     cv::createTrackbar("gaus_size", "set_params", &all_p.gaus_size, 66);
     cv::createTrackbar("verti_size", "set_params", &all_p.verti_size, 66);
+    cv::createTrackbar("hori_size", "set_params", &all_p.hori_size, 66);
 
     while (1) {
         cp >> frame;
