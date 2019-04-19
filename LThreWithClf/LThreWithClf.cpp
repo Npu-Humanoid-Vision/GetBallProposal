@@ -96,27 +96,19 @@ cv::Mat ClfBallVision::ProcessColor() {
     cv::Mat glass_mask = cv::Mat(this->src_image_.size(), CV_8UC1, cv::Scalar(0));
     cv::Mat t_a = GetUsedChannel(this->pretreaded_image_, A);
     cv::Mat glass_thre = t_a >= a_min & t_a <= a_max;
-
+    
     int last_i = -1;
     int last_j = -1;
     for (int i = 0; i < glass_thre.cols; i++) {
-        for (int j = 0; j < glass_thre.rows-10; j++) {
+        for (int j = 0; j < glass_thre.rows-3; j++) {
             if (glass_thre.at<uchar>(j, i) == 255
                 && glass_thre.at<uchar>(j+1, i) == 255
-                && glass_thre.at<uchar>(j+2, i) == 255
-                && glass_thre.at<uchar>(j+3, i) == 255
-                && glass_thre.at<uchar>(j+4, i) == 255
-                && glass_thre.at<uchar>(j+5, i) == 255
-                && glass_thre.at<uchar>(j+6, i) == 255
-                && glass_thre.at<uchar>(j+7, i) == 255
-                && glass_thre.at<uchar>(j+8, i) == 255
-                && glass_thre.at<uchar>(j+9, i) == 255
-                && glass_thre.at<uchar>(j+10, i) == 255) {
+                && glass_thre.at<uchar>(j+2, i) == 255) {
                 if (last_i < 0) {
                     last_i = i;
                     last_j = j;
                 } else {
-                    cv::line(glass_mask, cv::Point(i, j), cv::Point(last_i, last_j), cv::Scalar(255), 2);
+                    cv::line(glass_mask, cv::Point(i, j), cv::Point(last_i, last_j), cv::Scalar(255), 3);
                     last_i = i;
                     last_j = j;
                 }
@@ -124,6 +116,8 @@ cv::Mat ClfBallVision::ProcessColor() {
             }
         }
     }
+    // cv::line(glass_mask, cv::Point(last_i, last_j), cv::Point(src_image_.rows, last_j), cv::Scalar(255), 3);
+    // SHOW_IMAGE(glass_mask, "grass edge");
     cv::floodFill(glass_mask, cv::Point(glass_thre.cols / 2, glass_thre.rows - 1), 255);
     SHOW_IMAGE(glass_mask, "grass mask");
     thre_result = thre_result & glass_mask;
@@ -167,7 +161,48 @@ std::vector<cv::Rect> ClfBallVision::GetPossibleRect(cv::Mat binary_image) {
                 continue;
             }
             else if (t_rect.width > t_rect.height) {
+
+                // middle rect without debug
+                int max_sum = -1;
+                int max_x = -1;
+                for (int i=t_rect.x; i<t_rect.x+t_rect.width; i++) {
+                    int pix_sum = 0;
+                    for (int j=t_rect.y; j<t_rect.y+t_rect.height; j++) {
+                        if (binary_image.at<uchar>(j, i) == 255) {
+                            pix_sum += 1;
+                        }
+                    }
+                    if (pix_sum > max_sum) {
+                        max_sum = pix_sum;
+                        max_x = i;
+                    }
+                }
+                // get the middle rect
+                if (max_x-t_rect.height/2 > 0 
+                    && max_x-t_rect.height/2+t_rect.height*3/2 < src_image_.cols
+                    && t_rect.y+t_rect.height*3/2 < src_image_.rows ) {
+                    cv::Rect middle_rect;
+                    middle_rect = cv::Rect(max_x-t_rect.height/2, t_rect.y, t_rect.height*3/2, t_rect.height*3/2);
+                        // middle_rect = cv::Rect(max_x-t_rect.height/2, t_rect.y, t_rect.height, t_rect.height);
+                    
+                    int delta = verti_size;
+                    if (middle_rect.x - delta > 0) {
+                        middle_rect.x -= delta;
+                    }
+                        
+                    if (middle_rect.y - delta > 0) {
+                        middle_rect.y -= delta;
+                    }
+
+                    if (middle_rect.width+middle_rect.x+delta*2 < src_image_.cols)
+                        middle_rect.width += delta*2;
+                    if (middle_rect.height+middle_rect.y+delta*2 < src_image_.rows)
+                        middle_rect.height += delta*2;
+
+                    bound_rect.push_back(middle_rect);
+                }
                 
+
                 /// abandon version
                 // int step = t_rect.height/5;
                 // for (int i=t_rect.x; i+t_rect.height<t_rect.x+t_rect.width; i+=step) {
@@ -347,6 +382,8 @@ void ClfBallVision::StoreParameters() {
 void ClfBallVision::set_all_parameters(AllParameters ap) {
     l_min = ap.l_min;
     l_max = ap.l_max;
+    a_min = ap.a_min;
+    a_max = ap.a_max;
     s_min = ap.s_min;
     gaus_size = ap.gaus_size;
     verti_size = ap.verti_size;

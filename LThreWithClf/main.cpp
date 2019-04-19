@@ -18,6 +18,8 @@ int main(int argc, char const *argv[]) {
 
     all_p.l_min = sprint_vision.l_min;
     all_p.l_max = sprint_vision.l_max;
+    all_p.a_min = sprint_vision.a_min;
+    all_p.a_max = sprint_vision.a_max;
     all_p.s_min = sprint_vision.s_min;
     all_p.gaus_size = sprint_vision.gaus_size;
     all_p.verti_size = sprint_vision.verti_size;
@@ -27,6 +29,8 @@ int main(int argc, char const *argv[]) {
     
     cv::createTrackbar("l_min", "set_params", &all_p.l_min, 255);
     cv::createTrackbar("l_max", "set_params", &all_p.l_max, 255);
+    cv::createTrackbar("a_min", "set_params", &all_p.a_min, 255);
+    cv::createTrackbar("a_max", "set_params", &all_p.a_max, 255);
     cv::createTrackbar("s_min", "set_params", &all_p.s_min, 255);
     cv::createTrackbar("gaus_size", "set_params", &all_p.gaus_size, 66);
     cv::createTrackbar("verti_size", "set_params", &all_p.verti_size, 66);
