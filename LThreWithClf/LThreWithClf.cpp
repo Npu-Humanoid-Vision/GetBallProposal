@@ -22,6 +22,15 @@ void ClfBallVision::imageProcess(cv::Mat input_image, ImgProcResult* output_resu
     // cout<<"nmb"<<endl;
     possible_rects_ = GetPossibleRect(thresholded_image_);  
     // cout<<"yaya"<<endl;
+
+    // once the bot closed to the ball, do it without classifier
+    if (possible_rects_.size() <= 3) {
+        for (int i=0; i<possible_rects_.size(); i++) {
+            pos_rects.push_back(possible_rects_[i]);
+            cv::rectangle(for_show_, possible_rects_[i], cv::Scalar(128, 255, 255), 2);
+        }
+        goto L1;
+    }
     for (size_t i=0; i<possible_rects_.size(); i++) {
         cv::Mat roi = src_image_(possible_rects_[i]).clone();
         cv::Mat hog_vec_in_mat = GetHogVec(possible_rects_[i]);
@@ -36,8 +45,9 @@ void ClfBallVision::imageProcess(cv::Mat input_image, ImgProcResult* output_resu
             cv::rectangle(for_show_, possible_rects_[i], cv::Scalar(0, 0, 255), 2);
         }
     }
-    
-    cout<<"pos rect nums: "<<pos_rects.size()<<endl;
+L1: 
+    cout<<"pos rect nums: "<<pos_rects.size()<<endl
+        <<"with all retc: "<<possible_rects_.size()<<endl;
     if (pos_rects.size() >= 1) {
         final_result_.valid_ = true;
         int max_area = -1;
@@ -156,7 +166,8 @@ std::vector<cv::Rect> ClfBallVision::GetPossibleRect(cv::Mat binary_image) {
         double wh_rate = t_rect.width*1.0/t_rect.height;
  
         // shape & area thre
-        if (0.33<wh_rate && wh_rate<3.0 && t_rect.area() > 200) {
+        // if (0.33<wh_rate && wh_rate<3.0 && t_rect.area() > 100) {
+        if (t_rect.width*t_rect.width > 100) {
             if (t_rect.width < t_rect.height) {
                 continue;
             }
@@ -199,7 +210,7 @@ std::vector<cv::Rect> ClfBallVision::GetPossibleRect(cv::Mat binary_image) {
                     if (middle_rect.height+middle_rect.y+delta*2 < src_image_.rows)
                         middle_rect.height += delta*2;
 
-                    bound_rect.push_back(middle_rect);
+                    // bound_rect.push_back(middle_rect);
                 }
                 
 
